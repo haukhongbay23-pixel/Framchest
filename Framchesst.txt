@@ -1,0 +1,179 @@
+local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
+
+-- Cấu hình Key
+local CorrectKey = "CHII_HAUU_2026" -- Bạn có thể đổi Key tại đây
+local HasKey = false
+_G.AutoFarmChest = false
+local Speed = 160 
+
+local Window = Rayfield:CreateWindow({
+   Name = "🏴‍☠️ Blox Fruits: Chii Hauu HUB",
+   LoadingTitle = "Hệ Thống Xác Thực Người Dùng",
+   LoadingSubtitle = "by Chii Hauu",
+   ConfigurationSaving = { Enabled = false },
+   KeySystem = false, -- Tắt mặc định của Rayfield để dùng Key tự chế cho ngầu
+   Keybind = "LeftControl", 
+   Image = 1000021974 
+})
+
+-- 1. Hàm Đổi Server
+function ServerHop()
+    local HttpService = game:GetService("HttpService")
+    local TeleportService = game:GetService("TeleportService")
+    pcall(function()
+        local Servers = HttpService:JSONDecode(game:HttpGet("https://games.roblox.com/v1/games/" .. game.PlaceId .. "/servers/Public?sortOrder=Asc&limit=100"))
+        for i, v in pairs(Servers.data) do
+            if v.playing < v.maxPlayers and v.id ~= game.JobId then
+                TeleportService:TeleportToPlaceInstance(game.PlaceId, v.id)
+                break
+            end
+        end
+    end)
+end
+
+-- 2. Kiểm tra đồ quý
+function checkRareItems()
+    local rareItems = {"God's Chalice", "Fist of Darkness"}
+    for _, itemName in pairs(rareItems) do
+        if game.Players.LocalPlayer.Backpack:FindFirstChild(itemName) or 
+           (game.Players.LocalPlayer.Character and game.Players.LocalPlayer.Character:FindFirstChild(itemName)) then
+            _G.AutoFarmChest = false 
+            return true
+        end
+    end
+    return false
+end
+
+-- 3. Noclip & Fix giật (BodyVelocity)
+spawn(function()
+    game:GetService("RunService").Stepped:Connect(function()
+        pcall(function()
+            if _G.AutoFarmChest and game.Players.LocalPlayer.Character then
+                local Root = game.Players.LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+                for _, v in pairs(game.Players.LocalPlayer.Character:GetDescendants()) do
+                    if v:IsA("BasePart") then v.CanCollide = false end
+                end
+                if Root and not Root:FindFirstChild("ChiiHauuVel") then
+                    local bv = Instance.new("BodyVelocity")
+                    bv.Name = "ChiiHauuVel"
+                    bv.Velocity = Vector3.new(0,0,0)
+                    bv.MaxForce = Vector3.new(9e9, 9e9, 9e9)
+                    bv.Parent = Root
+                end
+            else
+                if game.Players.LocalPlayer.Character and game.Players.LocalPlayer.Character.HumanoidRootPart:FindFirstChild("ChiiHauuVel") then
+                    game.Players.LocalPlayer.Character.HumanoidRootPart.ChiiHauuVel:Destroy()
+                end
+            end
+        end)
+    end)
+end)
+
+-- TABS
+local KeyTab = Window:CreateTab("🔑 Hệ Thống Key", 4483362458)
+local MainTab = Window:CreateTab("💰 Auto Farm", 4483362458)
+
+-- PHẦN NHẬP KEY (Chỉ khi nhập đúng HasKey mới thành true)
+KeyTab:CreateSection("🔐 Vui lòng nhập mã để mở khóa")
+
+KeyTab:CreateInput({
+   Name = "Nhập Key tại đây",
+   PlaceholderText = "Key: " .. CorrectKey,
+   RemoveTextAfterFocusLost = false,
+   Callback = function(Text)
+      if Text == CorrectKey then
+         HasKey = true
+         Rayfield:Notify({Title = "XÁC THỰC THÀNH CÔNG", Content = "Chào mừng Chii Hauu! Bạn đã có thể sử dụng Farm.", Duration = 5})
+      else
+         HasKey = false
+         Rayfield:Notify({Title = "SAI KEY!", Content = "Vui lòng kiểm tra lại mã xác thực.", Duration = 5})
+      end
+   end,
+})
+
+KeyTab:CreateButton({
+   Name = "Lấy Key (Copy Discord)",
+   Callback = function()
+      setclipboard("https://discord.gg/chii-hauu") -- Thay link của bạn vào đây
+      Rayfield:Notify({Title = "Đã Copy", Content = "Link Discord đã được sao chép!", Duration = 3})
+   end,
+})
+
+-- PHẦN FARM (Kiểm tra HasKey trước khi chạy)
+MainTab:CreateSection("💰 Cấu Hình Farm Rương")
+
+MainTab:CreateToggle({
+   Name = "Bật Auto Farm Chest (Smooth)",
+   CurrentValue = false,
+   Callback = function(Value)
+      if HasKey then
+         _G.AutoFarmChest = Value
+         if Value then doFarmChest() end
+      else
+         _G.AutoFarmChest = false
+         Rayfield:Notify({Title = "LỖI TRUY CẬP", Content = "Bạn phải nhập đúng Key ở Tab 'Hệ Thống Key'!", Duration = 5})
+      end
+   end,
+})
+
+MainTab:CreateButton({
+   Name = "🛑 Dừng Toàn Bộ Script",
+   Callback = function()
+      _G.AutoFarmChest = false
+      Rayfield:Destroy()
+   end,
+})
+
+-- LOGIC FARM (Smooth & Anti-Lag)
+function doFarmChest()
+    spawn(function()
+        while _G.AutoFarmChest do
+            if checkRareItems() then 
+                Rayfield:Notify({Title = "DỪNG LẠI!", Content = "Đã tìm thấy đồ quý!", Duration = 10})
+                break 
+            end
+
+            local targetChest = nil
+            local minDist = math.huge
+
+            for _, v in pairs(game:GetService("Workspace"):GetDescendants()) do
+                if v:IsA("TouchTransmitter") and v.Parent and v.Parent.Name:find("Chest") then
+                    local chest = v.Parent
+                    local Root = game.Players.LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+                    if Root and chest:IsA("BasePart") then
+                        local dist = (chest.Position - Root.Position).Magnitude
+                        if dist < minDist then
+                            minDist = dist
+                            targetChest = chest
+                        end
+                    end
+                end
+            end
+
+            if targetChest and _G.AutoFarmChest then
+                local Root = game.Players.LocalPlayer.Character.HumanoidRootPart
+                local tween = game:GetService("TweenService"):Create(
+                    Root,
+                    TweenInfo.new(minDist / Speed, Enum.EasingStyle.Linear),
+                    {CFrame = targetChest.CFrame}
+                )
+                tween:Play()
+
+                while targetChest:IsDescendantOf(game.Workspace) and _G.AutoFarmChest do
+                    task.wait(0.05)
+                    if not HasKey then tween:Cancel() break end
+                    if checkRareItems() then tween:Cancel() return end
+                end
+                tween:Cancel()
+                task.wait(0.1)
+            else
+                if _G.AutoFarmChest then
+                    Rayfield:Notify({Title = "Chii Hauu", Content = "Hết rương! Đang đổi server...", Duration = 3})
+                    ServerHop()
+                    break
+                end
+            end
+            task.wait(0.1)
+        end
+    end)
+end
